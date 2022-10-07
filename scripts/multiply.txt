@@ -1,0 +1,16 @@
+LDA 13
+ADD 15
+STA 15
+OUT
+LDA 14
+SUB 12
+STA 14
+JZ 9
+JMP 0
+HLT 
+
+
+#1 // for decrementing
+#5 // in A
+#3 // in B, counter down
+#0 //output

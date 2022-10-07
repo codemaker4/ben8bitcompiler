@@ -1,0 +1,261 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ben Eater 8bit compiler</title>
+</head>
+<body>
+    <div id="codeContainer">
+        <div id="rowNumbers"></div>
+        <textarea name="input" id="input"></textarea>
+        <div id="output"></div>
+    </div>
+    <div id="cheatSheet">
+        CHEATSHEET:<br>
+        NOP: do nothing<br>
+        HLT: stop the computer<br>
+        OUT: display the value of register A<br>
+        <br>
+        LDI [value]: load value into A<br>
+        LDA [addr]: load value from mem into A<br>
+        STA [addr]: store value from A into ram<br>
+        <br>
+        ADD/SUB [addr]: load the address into B and perform the math operation. The result is put in A and the flags are updated.<br>
+        <br>
+        JMP [addr]: jump to the address<br>
+        JC [addr]: jump if carry is set<br>
+        JZ [addr]: jump if zero is set<br>
+    </div>
+
+    <style>
+        body {
+           margin: 0;
+           height: 100vh;
+           overflow: hidden;
+           font-family: monospace;
+           font-size: calc(100vh / 24);
+        }
+
+        #rowNumbers {
+           grid-column: 1 / 2;
+        }
+
+        #codeContainer > #input {
+            font-size: inherit;
+            resize: none;
+            padding: 0;
+            padding-left: 2px;
+            border: 0;
+            background: none;
+            border-left-width: 2px;
+            border-style: solid;
+            border-color: black;
+        }
+
+        #codeContainer > #input:focus-visible {
+            outline: 0;
+        }
+
+        #codeContainer > #output {
+            resize: none;
+            text-align: right;
+        }
+
+        #codeContainer > * {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        #codeContainer {
+            width: 60vw;
+            float: left;
+            height: min-content;
+            display: grid;
+            grid-template-columns: min-content auto max-content;
+            grid-template-rows: min-content;
+            column-gap: 1vh;
+            background-image: url("./backdrop.png");
+            background-size: contain;
+            image-rendering: pixelated;
+        }
+
+        #cheatSheet {
+            width: 39vw;
+            padding-left: 1vw;
+            float: left;
+            height: min-content;
+            font-size: 0.75em;
+        }
+    </style>
+
+    <script>
+        let rowNumbers = document.getElementById("rowNumbers");
+        let input = document.getElementById("input");
+        let output = document.getElementById("output");
+
+        for (let i = 0; i < 16; i++) {
+            rowNumbers.innerText += i + "\n"
+        }
+
+        function update () {
+            output.innerText = "";
+            rows = input.value.split("\n");
+            for (let i = 0; i < 16; i++) {
+                let row = rows[i] ? rows[i].toUpperCase() : "#0";
+
+                let commentStart = row.indexOf(" /");
+                if (commentStart != -1) {
+                    row = row.substr(0,commentStart);
+                }
+                
+                if (row.match(/^#-?[0-9]+$/)) {
+                    let num = parseInt(row.substr(1));
+                    if (num < 0) {
+                        output.innerText += "Err: negative\n";
+                        continue;
+                    }
+                    if (num >= 256) {
+                        output.innerText += "Err: overflow\n";
+                        continue;
+                    }
+                    output.innerText += toBin(num, 8) + "\n";
+                } else if (row.match(/^#T-?[0-9]+$/)) {
+                    let num = parseInt(row.substr(2));
+                    if (num < -128) {
+                        output.innerText += "Err: underflow\n";
+                        continue;
+                    }
+                    if (num >= 128) {
+                        output.innerText += "Err: overflow\n";
+                        continue;
+                    }
+                    output.innerText += toBin(num+128, 8) + "\n";
+                } else if (row.match(/^0X[0-9A-F]+$/)) {
+                    let num = parseInt(row.substr(2), 16);
+                    if (num < 0) {
+                        output.innerText += "Err: negative\n";
+                        continue;
+                    }
+                    if (num >= 256) {
+                        output.innerText += "Err: overflow\n";
+                        continue;
+                    }
+                    output.innerText += toBin(num, 8) + "\n";
+                } else if (row.match(/^[A-Z]{1,4}/)) {
+                    let command = row.match(/^[A-Z]{1,4}/)[0];
+                    switch (command) {
+                        case "NOP":
+                            output.innerText += "0000 0000\n";
+                            break;
+
+                        case "LDA":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0001 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "ADD":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0010 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "SUB":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0011 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "STA":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0100 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "LDI":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0101 " + toBin(num, 4) + "\n";
+                            break;
+
+                        case "JMP":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(4));
+                            output.innerText += "0110 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "JC":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(3));
+                            output.innerText += "0111 " + toBin(num, 4) + "\n";
+                            break;
+
+                        case "JZ":
+                            if (!row.match(/^[A-Z]{1,4} [0-9]+$/)) {
+                                output.innerText += "Err: invalid argument\n";
+                                continue;
+                            }
+                            num = parseInt(row.substr(3));
+                            output.innerText += "1000 " + toBin(num, 4) + "\n";
+                            break;
+                        
+                        case "OUT":
+                            output.innerText += "1110 0000\n";
+                            break;
+
+                        case "HLT":
+                            output.innerText += "1111 0000\n";
+                            break;
+
+                        default:
+                            output.innerText += "Err: invalid instruction\n"
+                            break;
+                    }
+                } else {
+                    output.innerText += "Err: syntax\n";
+                }
+            }
+        }
+        input.addEventListener("input", update);
+        update();
+
+        function toBin(num, length) {
+            if (typeof num == "number") num = num.toString(2);
+
+            while (num.length < length) {
+                num = "0" + num;
+            }
+
+            if (length == 8) {
+                num = num.substr(0,4) + " " + num.substr(4);
+            }
+
+            return num;
+        }
+    </script>
+</body>
+</html>
